@@ -1,0 +1,10 @@
+# editor dirs and virtual env
+.venv
+.idea
+.vscode
+
+# env variables
+.env
+
+# python cache files
+__pycache__
