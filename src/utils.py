@@ -37,6 +37,7 @@ login_user_schema = LoginUserSchema()
 
 def api_response(message: str, code: int, data: any = None):
     success = True if code < 400 else False
-    if data is not None:
-        return make_response(jsonify({"message": message, "success": success, "data": data}), code)
-    return make_response(jsonify({"message": message, "success": success}), code)
+    response = {"message": message, "success": success, "code": code}
+    if data:
+        response["data"] = data
+    return make_response(jsonify(response), code)

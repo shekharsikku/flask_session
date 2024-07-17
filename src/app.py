@@ -8,6 +8,7 @@ from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 from werkzeug.exceptions import HTTPException
 import pymysql
+import uuid
 import sys
 from src.utils import generate_hashed, check_hashed, user_schema, users_schema, login_user_schema, api_response
 from src.env import mysqldb_uri, secret_key, cors_origin
@@ -32,8 +33,8 @@ db = SQLAlchemy(app)
 
 
 # Database user table model
-class Users(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
+class User(db.Model):
+    id = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid1()))
     name = db.Column(db.String(100), nullable=False)
     email = db.Column(db.String(100), unique=True, nullable=False)
     username = db.Column(db.String(50), unique=True, nullable=False)
@@ -85,8 +86,8 @@ def greet():
     return api_response("Welcome to Flask Session!", 200)
 
 
-# Api route for register user - http://127.0.0.1:8100/api/users/register
-@app.route("/api/users/register", methods=["POST"])
+# Api route for register user - http://localhost:8100/api/users/register
+@app.route("/api/user/register", methods=["POST"])
 def register_user():
     user_data = request.get_json()
 
@@ -109,7 +110,7 @@ def register_user():
     password = generate_hashed(user_data["password"])
 
     # Check for existing user with given username and email
-    existing_user = Users.query.filter((Users.username == username) | (Users.email == email)).first()
+    existing_user = User.query.filter((User.username == username) | (User.email == email)).first()
 
     if existing_user:
         field = None
@@ -120,7 +121,7 @@ def register_user():
         return api_response(f"{field} Already Registered!", 409)
     
     # Creating and registering a new user
-    new_user = Users(name, email, username, password)
+    new_user = User(name, email, username, password)
     db.session.add(new_user)
     db.session.commit()
 
@@ -135,8 +136,8 @@ def clear_session_access_cookies() -> object:
     return session_value
 
 
-# Api route for login user - http://127.0.0.1:8100/api/users/login
-@app.route("/api/users/login", methods=["POST"])
+# Api route for login user - http://localhost:8100/api/users/login
+@app.route("/api/user/login", methods=["POST"])
 def login_user():
     user_data = request.get_json()
 
@@ -157,7 +158,7 @@ def login_user():
     for key, value in fields.items():
         if value:
             session_key = key
-            exists_user = Users.query.filter_by(**{key: value}).first()
+            exists_user = User.query.filter_by(**{key: value}).first()
             break
 
     if not exists_user:
@@ -183,12 +184,12 @@ def login_user():
     if verify_password:
         session[session_key] = check_login_user[session_key]
         response = user_schema.dump(check_login_user)
-        return api_response("User Login Successfully!", 202, response)
+        return api_response("User Login Successfully!", 200, response)
     return api_response("Incorrect Password!", 403)
 
 
-# Api route for logout current session user - http://127.0.0.1:8100/api/users/logout
-@app.route("/api/users/logout", methods=["DELETE"])
+# Api route for logout current session user - http://localhost:8100/api/users/logout
+@app.route("/api/user/logout", methods=["DELETE"])
 def logout_user():
     session_value = clear_session_access_cookies()
 
@@ -203,7 +204,7 @@ def login_required(func):
     def secure_function(*args, **kwargs):
         if any(key in session for key in ["username", "email"]):
             session_key = next((key for key in ["username", "email"] if key in session), None)
-            session_user = Users.query.filter_by(**{session_key: session[session_key]}).first()
+            session_user = User.query.filter_by(**{session_key: session[session_key]}).first()
             if session_key and session_user:
                 return func(session_user, *args, **kwargs)
             return func(*args, **kwargs)
@@ -212,8 +213,8 @@ def login_required(func):
     return secure_function
 
 
-# Api route for check session user - http://127.0.0.1:8100/api/users/session
-@app.route("/api/users/session", methods=["GET"])
+# Api route for check session user - http://localhost:8100/api/users/session
+@app.route("/api/user/session", methods=["GET"])
 @login_required
 def get_session_user(session_user, *args, **kwargs):
     if g.user and session_user:
@@ -222,11 +223,11 @@ def get_session_user(session_user, *args, **kwargs):
     return api_response("Unauthorized User", 401)
 
 
-# Api route for fetch all users - http://127.0.0.1:8100/api/users/fetch
-@app.route("/api/users/fetch", methods=["GET"])
+# Api route for fetch all users - http://localhost:8100/api/users/fetch
+@app.route("/api/user/fetch", methods=["GET"])
 @login_required
 def fetch_users(session_user, *args, **kwargs):
-    all_users = Users.query.filter(Users.id != session_user.id).all()
+    all_users = User.query.filter(User.id != session_user.id).all()
     
     if not all_users:
         return api_response("Users Not Available!", 404)
@@ -235,11 +236,11 @@ def fetch_users(session_user, *args, **kwargs):
     return api_response("Users Fetched Successfully!", 200, response)
 
 
-# Api route for fetch user by id - http://127.0.0.1:8100/api/users/fetch/<id>
-@app.route("/api/users/fetch/<id>", methods=["GET"])
+# Api route for fetch user by id - http://localhost:8100/api/users/fetch/<id>
+@app.route("/api/user/fetch/<id>", methods=["GET"])
 @login_required
 def fetch_user(session_user, *args, **kwargs):
-    existed_user = Users.query.get({**kwargs})
+    existed_user = User.query.get({**kwargs})
 
     if not existed_user:
         return api_response("User Not Found!", 404)
@@ -248,17 +249,17 @@ def fetch_user(session_user, *args, **kwargs):
     return api_response("User Fetched Successfully!", 200, response)
 
 
-# Api route for fetch user by query parameter - http://127.0.0.1:8100/api/users/fetch/user?query=parameter
-@app.route("/api/users/fetch/user", methods=["GET"])
+# Api route for fetch user by query parameter - http://localhost:8100/api/users/fetch/user?query=parameter
+@app.route("/api/user/search", methods=["GET"])
 @login_required
-def fetch_user_by(session_user, *args, **kwargs):
+def search_user_by_query(session_user, *args, **kwargs):
     user_data = request.args.to_dict()
     print("Search User:", user_data)
 
     if not user_data:
         return api_response("Please, Provide User Details!", 400)
 
-    existed_user = Users.query.filter_by(**user_data).first()
+    existed_user = User.query.filter_by(**user_data).first()
 
     if not existed_user:
         return api_response("User Not Found!", 404)
@@ -271,7 +272,7 @@ def fetch_user_by(session_user, *args, **kwargs):
 def verify_session(func):
     @wraps(func)
     def secure_function(*args, **kwargs):
-        existed_user = Users.query.filter_by(**kwargs).first()
+        existed_user = User.query.filter_by(**kwargs).first()
 
         if not existed_user:
             return api_response("User Not Found!", 404)
@@ -286,19 +287,19 @@ def verify_session(func):
     return secure_function
 
 
-# Api route for update user data by id - http://127.0.0.1:8100/api/users/update/<id>
-@app.route("/api/users/update/<id>", methods=["PUT", "PATCH"])
+# Api route for update user data by id - http://localhost:8100/api/users/update/<id>
+@app.route("/api/user/update/<id>", methods=["PUT", "PATCH"])
 @verify_session
 def update_user(existed_user, **kwargs):
     user_data = request.get_json()
 
     if user_data and "username" or "email" in user_data:
         # check for existing username
-        if "username" in user_data and Users.query.filter_by(username=user_data["username"]).first():
+        if "username" in user_data and User.query.filter_by(username=user_data["username"]).first():
             return api_response("Username Already Exists!", 409)
 
         # check for existing email
-        if "email" in user_data and Users.query.filter_by(email=user_data["email"]).first():
+        if "email" in user_data and User.query.filter_by(email=user_data["email"]).first():
             return api_response("Email Already Exists!", 409)
     
     if not user_data or not any(key in user_data for key in ["username", "email", "fullname", "password"]):
@@ -316,15 +317,15 @@ def update_user(existed_user, **kwargs):
         existed_user.password = generate_hashed(password) if password is not None else existed_user.password
 
         db.session.commit()
-        updated_user = Users.query.filter_by(**kwargs).first()
+        updated_user = User.query.filter_by(**kwargs).first()
         response = user_schema.dump(updated_user)
         clear_session_access_cookies()
         return api_response("User Updated Successfully!", 202, response)
     return api_response("Something Went Wrong!", 400)
 
 
-# Api route for delete user by id - http://127.0.0.1:8100/api/users/delete/<id>
-@app.route("/api/users/delete/<id>", methods=["DELETE"])
+# Api route for delete user by id - http://localhost:8100/api/users/delete/<id>
+@app.route("/api/user/delete/<id>", methods=["DELETE"])
 @verify_session
 def delete_user(existed_user, *args, **kwargs):
     session_value = clear_session_access_cookies()
