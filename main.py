@@ -8,7 +8,7 @@ if __name__ == "__main__":
     try:
         if server_mode == "development":
             basicConfig(level=DEBUG)
-            app.run(debug=True, host="localhost", port=4000)
+            app.run(debug=True, host="localhost", port=8070)
         elif server_mode == "deployment":
             print("Running at: http://localhost:8080")
             serve(app=app)
